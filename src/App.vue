@@ -28,19 +28,25 @@ onMounted(() => {
 
     <!-- Minimalist Footer -->
     <footer
-      class="shrink-0 py-3 px-6 text-center text-xs text-slate-400 dark:text-slate-500
-             border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
-    >
-      Created by
-      <a
-        href="https://utharam.github.io/"
-        target="_blank"
-        rel="noopener noreferrer"
-        class="font-medium text-slate-500 dark:text-slate-400 hover:text-brand-600 dark:hover:text-brand-400 transition"
+        class="shrink-0 py-3 px-6 text-center text-xs text-slate-400 dark:text-slate-500
+              border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800
+              flex flex-col gap-1"
       >
-        Utharam
-      </a>
-    </footer>
+        <div>
+          Created by
+          <a
+            href="https://utharam.github.io/"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="font-medium text-[#1877F2] hover:opacity-80 transition"
+          >
+            Utharam
+          </a>
+        </div>
+        <div>
+          Built for accountants, by an accountant. Runs entirely in your browser. No data leaves your device.
+        </div>
+      </footer>
 
     <!-- Help Modal (renders on top of everything when active) -->
     <HelpModal v-if="settingsStore.isHelpOpen" />
