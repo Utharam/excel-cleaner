@@ -19,11 +19,13 @@ const importFileInput = ref(null)
 
 const defaultFormState = () => ({
   name: '',
-  matchField: 'Particulars',
-  matchType: 'Contains',
-  matchValue: '',
-  outputColumn: 'Remark 1',
-  outputValue: '',
+  conditionGate: 'AND',
+  conditions: [
+    { field: dataStore.headers.length > 0 ? dataStore.headers[0] : 'Particulars', operator: 'Contains', value: '' }
+  ],
+  outputs: [
+    { column: 'Remark 1', value: '' }
+  ],
 })
 
 const ruleForm = reactive(defaultFormState())
@@ -31,22 +33,28 @@ const ruleForm = reactive(defaultFormState())
 // ─── Dropdown Options ────────────────────────────────────
 const matchFieldOptions = computed(() => {
   const headers = dataStore.headers.length > 0 ? dataStore.headers : ['Particulars']
-  if (ruleForm.matchField && !headers.includes(ruleForm.matchField)) {
-    return [ruleForm.matchField, ...headers]
-  }
   return headers
 })
 
-const matchTypeOptions = ['Contains', 'Equals', 'Starts with', 'Ends with', 'Regex']
-const outputColumnOptions = ['Remark 1', 'Remark 2']
+const operatorOptions = [
+  { value: 'Contains', label: 'Contains (text)' },
+  { value: 'Does not contain', label: 'Does not contain (text)' },
+  { value: 'Equals', label: 'Equals (exact text)' },
+  { value: 'Starts with', label: 'Starts with' },
+  { value: 'Ends with', label: 'Ends with' },
+  { value: '>', label: 'Greater than (>)' },
+  { value: '<', label: 'Less than (<)' },
+  { value: '>=', label: 'Greater or equal (>=)' },
+  { value: '<=', label: 'Less or equal (<=)' },
+  { value: '==', label: 'Numeric equals (==)' },
+  { value: 'Regex', label: 'Regex pattern' },
+]
+
+const outputColumnOptions = ['Remark 1', 'Remark 2', 'Remark 3', 'Remark 4', 'Category', 'Sub-Category', 'Status']
 
 // ─── Computed ─────────────────────────────────────────────
 const formTitle = computed(() => editingRuleId.value ? 'Edit Rule' : 'New Rule')
 
-// Filter rules to only show those belonging to the active profile.
-// Also includes 'Global' rules (they run across all profiles, so they
-// should be visible and manageable from any profile view).
-// Backward compat: rules with undefined profile are treated as 'Default'.
 const visibleRules = computed(() => {
   return rulesStore.rules.filter(rule => {
     if (rule.profile === rulesStore.activeProfile) return true
@@ -80,23 +88,58 @@ const closeForm = () => {
   isFormOpen.value = false
 }
 
+const addCondition = () => {
+  const defaultField = dataStore.headers.length > 0 ? dataStore.headers[0] : 'Particulars'
+  ruleForm.conditions.push({ field: defaultField, operator: 'Contains', value: '' })
+}
+
+const removeCondition = (index) => {
+  if (ruleForm.conditions.length > 1) {
+    ruleForm.conditions.splice(index, 1)
+  }
+}
+
+const addOutput = () => {
+  const nextNum = ruleForm.outputs.length + 1
+  ruleForm.outputs.push({ column: `Remark ${nextNum}`, value: '' })
+}
+
+const removeOutput = (index) => {
+  if (ruleForm.outputs.length > 1) {
+    ruleForm.outputs.splice(index, 1)
+  }
+}
+
 const saveRule = () => {
   if (!ruleForm.name.trim()) {
     alert('Rule name is required.')
     return
   }
-  if (!ruleForm.matchValue.trim()) {
-    alert('Match value is required.')
+
+  const validConditions = ruleForm.conditions.filter(c => c.value && String(c.value).trim())
+  if (validConditions.length === 0) {
+    alert('At least one condition with a match value is required.')
+    return
+  }
+
+  const validOutputs = ruleForm.outputs.filter(o => o.value && String(o.value).trim())
+  if (validOutputs.length === 0) {
+    alert('At least one output remark is required.')
     return
   }
 
   const payload = {
     name: ruleForm.name.trim(),
-    matchField: ruleForm.matchField,
-    matchType: ruleForm.matchType,
-    matchValue: ruleForm.matchValue.trim(),
-    outputColumn: ruleForm.outputColumn,
-    outputValue: ruleForm.outputValue.trim(),
+    conditionGate: ruleForm.conditionGate || 'AND',
+    conditions: validConditions.map(c => ({
+      field: c.field,
+      operator: c.operator,
+      value: String(c.value).trim(),
+    })),
+    outputs: validOutputs.map(o => ({
+      column: o.column ? o.column.trim() : 'Remark 1',
+      value: String(o.value).trim(),
+    })),
   }
 
   if (editingRuleId.value) {
@@ -110,13 +153,19 @@ const saveRule = () => {
 
 const editRule = (rule) => {
   editingRuleId.value = rule.id
+  const conditions = Array.isArray(rule.conditions) && rule.conditions.length > 0
+    ? rule.conditions.map(c => ({ ...c }))
+    : [{ field: rule.matchField || 'Particulars', operator: rule.matchType || 'Contains', value: rule.matchValue || '' }]
+
+  const outputs = Array.isArray(rule.outputs) && rule.outputs.length > 0
+    ? rule.outputs.map(o => ({ ...o }))
+    : [{ column: rule.outputColumn || 'Remark 1', value: rule.outputValue || '' }]
+
   Object.assign(ruleForm, {
     name: rule.name,
-    matchField: rule.matchField,
-    matchType: rule.matchType,
-    matchValue: rule.matchValue,
-    outputColumn: rule.outputColumn,
-    outputValue: rule.outputValue,
+    conditionGate: rule.conditionGate || 'AND',
+    conditions,
+    outputs,
   })
   isFormOpen.value = true
 }
@@ -127,25 +176,29 @@ const deleteRule = (id) => {
   }
 }
 
-// ─── Summary Badge Builder ───────────────────────────────
-const getRuleSummary = (rule) => {
-  return `[${rule.matchField}] ${rule.matchType} "${rule.matchValue}"`
+// ─── Helpers for Display ──────────────────────────────────
+const getRuleConditions = (rule) => {
+  if (Array.isArray(rule.conditions) && rule.conditions.length > 0) {
+    return rule.conditions
+  }
+  return [{ field: rule.matchField || 'Particulars', operator: rule.matchType || 'Contains', value: rule.matchValue || '' }]
+}
+
+const getRuleOutputs = (rule) => {
+  if (Array.isArray(rule.outputs) && rule.outputs.length > 0) {
+    return rule.outputs
+  }
+  return [{ column: rule.outputColumn || 'Remark 1', value: rule.outputValue || '' }]
 }
 
 // ─── Drag-and-Drop Reordering ────────────────────────────
-// NOTE: draggedRuleIndex and dragOverIndex hold VISUAL indices
-// (i.e., indices within the visibleRules filtered array).
-// On drop, we map these back to actual indices in rulesStore.rules
-// using rule IDs, so reordering a filtered subset doesn't scramble
-// the main array.
-const handleDragStart = (index, event) => {
-  draggedRuleIndex.value = index
+const handleDragStart = (visualIndex, event) => {
+  draggedRuleIndex.value = visualIndex
   event.dataTransfer.effectAllowed = 'move'
-  event.dataTransfer.setData('text/plain', String(index))
 }
 
-const handleDragEnter = (index) => {
-  dragOverIndex.value = index
+const handleDragEnter = (visualIndex) => {
+  dragOverIndex.value = visualIndex
 }
 
 const handleDragOver = (event) => {
@@ -153,40 +206,34 @@ const handleDragOver = (event) => {
   event.dataTransfer.dropEffect = 'move'
 }
 
-const handleDrop = (index, event) => {
-  event.preventDefault()
+const handleDrop = (targetVisualIndex) => {
+  const fromVisual = draggedRuleIndex.value
+  const toVisual = targetVisualIndex
 
-  if (draggedRuleIndex.value === null || draggedRuleIndex.value === index) {
+  if (fromVisual === null || fromVisual === toVisual) {
     draggedRuleIndex.value = null
     dragOverIndex.value = null
     return
   }
 
-  // Map visual indices to rule IDs, then to actual indices in the full array
-  const draggedRuleId = visibleRules.value[draggedRuleIndex.value]?.id
-  const targetRuleId = visibleRules.value[index]?.id
+  const fromRule = visibleRules.value[fromVisual]
+  const toRule = visibleRules.value[toVisual]
 
-  if (!draggedRuleId || !targetRuleId) {
+  if (!fromRule || !toRule) {
     draggedRuleIndex.value = null
     dragOverIndex.value = null
     return
   }
 
-  const actualDraggedIndex = rulesStore.rules.findIndex(r => r.id === draggedRuleId)
-  const actualTargetIndex = rulesStore.rules.findIndex(r => r.id === targetRuleId)
+  const masterList = [...rulesStore.rules]
+  const fromMasterIndex = masterList.findIndex(r => r.id === fromRule.id)
+  const toMasterIndex = masterList.findIndex(r => r.id === toRule.id)
 
-  if (actualDraggedIndex === -1 || actualTargetIndex === -1) {
-    draggedRuleIndex.value = null
-    dragOverIndex.value = null
-    return
+  if (fromMasterIndex !== -1 && toMasterIndex !== -1) {
+    const [moved] = masterList.splice(fromMasterIndex, 1)
+    masterList.splice(toMasterIndex, 0, moved)
+    rulesStore.setRules(masterList)
   }
-
-  // Reorder the actual rules array using the mapped indices
-  const newRules = [...rulesStore.rules]
-  const [movedRule] = newRules.splice(actualDraggedIndex, 1)
-  newRules.splice(actualTargetIndex, 0, movedRule)
-
-  rulesStore.setRules(newRules)
 
   draggedRuleIndex.value = null
   dragOverIndex.value = null
@@ -197,108 +244,112 @@ const handleDragEnd = () => {
   dragOverIndex.value = null
 }
 
-// ─── Export Rules to JSON ────────────────────────────────
+// ─── Export / Import Rules ─────────────────────────────────
 const handleExportRules = () => {
-  if (rulesStore.rules.length === 0) {
-    alert('No rules to export.')
+  const profileRules = visibleRules.value
+  if (profileRules.length === 0) {
+    alert('No rules in this profile to export.')
     return
   }
 
-  const json = JSON.stringify(rulesStore.rules, null, 2)
-  const blob = new Blob([json], { type: 'application/json' })
+  const jsonString = JSON.stringify(profileRules, null, 2)
+  const blob = new Blob([jsonString], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
 
-  const today = new Date()
-  const year = today.getFullYear()
-  const month = String(today.getMonth() + 1).padStart(2, '0')
-  const day = String(today.getDate()).padStart(2, '0')
-  const fileName = `excel-cleanup-rules-${year}-${month}-${day}.json`
-
-  const link = document.createElement('a')
-  link.href = url
-  link.download = fileName
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
+  const activeName = rulesStore.activeProfile.toLowerCase().replace(/\s+/g, '-')
+  const today = new Date().toISOString().slice(0, 10)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `rules-${activeName}-${today}.json`
+  a.click()
 
   URL.revokeObjectURL(url)
 }
 
-// ─── Import Rules from JSON ─────────────────────────────
-const handleImportClick = () => {
+const triggerImportFile = () => {
   importFileInput.value?.click()
 }
 
-const handleImportFile = (event) => {
-  const file = event.target.files[0]
-  event.target.value = ''
-
+const handleImportRules = (event) => {
+  const file = event.target.files?.[0]
   if (!file) return
 
   const reader = new FileReader()
-
   reader.onload = (e) => {
     try {
       const parsed = JSON.parse(e.target.result)
-
       if (!Array.isArray(parsed)) {
-        alert('Invalid file: The JSON must be an array of rule objects.')
+        alert('Invalid rules file. Expected a JSON array of rules.')
         return
       }
 
-      if (parsed.length === 0) {
-        alert('The imported file contains no rules.')
-        return
-      }
-
-      const addedCount = rulesStore.importRules(parsed)
-      alert(`Successfully imported ${addedCount} rule${addedCount === 1 ? '' : 's'}.`)
+      const count = rulesStore.importRules(parsed)
+      alert(`Successfully imported ${count} rule${count === 1 ? '' : 's'}.`)
     } catch (err) {
-      console.error('[Import Error]', err)
-      alert('Failed to parse the file. Please ensure it is a valid JSON file exported from this app.')
+      console.error('[Import Rules Error]', err)
+      alert('Failed to parse rules file. Please ensure it is valid JSON.')
     }
   }
 
-  reader.onerror = () => {
-    alert('Failed to read the file from disk.')
-  }
-
   reader.readAsText(file)
+  event.target.value = ''
 }
+
+const prefillFromRow = ({ field, value, amountField, amountValue }) => {
+  resetForm()
+  const cleanVal = String(value || '').trim()
+  ruleForm.name = `Rule: ${cleanVal.slice(0, 25)}`
+  ruleForm.conditions = [
+    { field: field || 'Particulars', operator: 'Contains', value: cleanVal }
+  ]
+  if (amountField && amountValue !== null && amountValue !== undefined && amountValue !== '') {
+    ruleForm.conditions.push({
+      field: amountField,
+      operator: '>',
+      value: String(amountValue).trim()
+    })
+  }
+  isFormOpen.value = true
+}
+
+defineExpose({
+  openForm,
+  prefillFromRow,
+})
 </script>
 
 <template>
   <aside
-    class="w-80 shrink-0 bg-white dark:bg-slate-800 border-l border-slate-200 dark:border-slate-700
-           flex flex-col"
+    class="w-96 shrink-0 border-l border-stone-200 dark:border-stone-800
+           bg-white dark:bg-stone-900 flex flex-col h-full overflow-hidden shadow-xs font-sans"
   >
-    <!-- ─── Sidebar Header ────────────────────────────────── -->
-    <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-700 shrink-0">
-      <h2 class="text-sm font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-        <svg class="w-4 h-4 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <!-- ─── Header ────────────────────────────────────────── -->
+    <div class="p-5 border-b border-stone-200 dark:border-stone-800 shrink-0">
+      <h2 class="text-base font-bold text-stone-900 dark:text-stone-100 flex items-center gap-2 font-mono">
+        <svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
         </svg>
-        Rules Manager
+        Multi-Condition Rules
       </h2>
-      <p class="text-xs text-slate-400 dark:text-slate-500 mt-1">
-        {{ visibleRules.length }} rule{{ visibleRules.length === 1 ? '' : 's' }} in this profile • Drag to reorder
+      <p class="text-xs text-stone-400 dark:text-stone-500 mt-1 font-mono">
+        {{ visibleRules.length }} rule{{ visibleRules.length === 1 ? '' : 's' }} in profile • First match wins
       </p>
     </div>
 
     <!-- ─── Profile Selector ─────────────────────────────── -->
-    <div class="px-5 py-3 border-b border-slate-200 dark:border-slate-700 shrink-0">
-      <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
+    <div class="px-5 py-3 border-b border-stone-200 dark:border-stone-800 shrink-0 bg-stone-50/60 dark:bg-stone-900/60">
+      <label class="block text-xs font-semibold text-stone-600 dark:text-stone-400 mb-1.5 font-mono">
         Active Profile
       </label>
       <div class="flex gap-2">
         <select
           v-model="rulesStore.activeProfile"
-          class="flex-1 px-3 py-2 rounded-md border border-slate-200 dark:border-slate-600
-                 bg-white dark:bg-slate-700 text-sm text-slate-700 dark:text-slate-200
-                 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+          class="flex-1 px-3 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700
+                 bg-white dark:bg-stone-800 text-xs font-medium text-stone-700 dark:text-stone-200
+                 focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono"
         >
           <option v-for="profile in rulesStore.profiles" :key="profile" :value="profile">
             {{ profile }}
@@ -306,14 +357,12 @@ const handleImportFile = (event) => {
         </select>
         <button
           @click="handleAddProfile"
-          class="shrink-0 px-3 py-2 rounded-md border border-slate-200 dark:border-slate-600
-                 text-slate-600 dark:text-slate-300 text-sm font-medium
-                 hover:bg-slate-50 dark:hover:bg-slate-700 transition flex items-center justify-center"
+          class="shrink-0 px-2.5 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700
+                 text-stone-600 dark:text-stone-300 text-xs font-bold font-mono
+                 hover:bg-stone-100 dark:hover:bg-stone-800 transition cursor-pointer"
           title="Create new profile"
         >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-          </svg>
+          + New
         </button>
       </div>
     </div>
@@ -322,20 +371,21 @@ const handleImportFile = (event) => {
     <div class="flex-1 overflow-y-auto">
 
       <!-- ═══════════════════════════════════════════════════ -->
-      <!-- FORM MODE                                             -->
+      <!-- FORM MODE (Rule Builder)                               -->
       <!-- ═══════════════════════════════════════════════════ -->
       <div v-if="isFormOpen" class="p-5 space-y-4">
 
-        <!-- Form Title -->
-        <div class="flex items-center justify-between">
-          <h3 class="text-sm font-semibold text-slate-700 dark:text-slate-200">
+        <!-- Form Header -->
+        <div class="flex items-center justify-between border-b pb-2 border-stone-100 dark:border-stone-800">
+          <h3 class="text-sm font-bold text-stone-800 dark:text-stone-100 font-mono">
             {{ formTitle }}
           </h3>
           <button
             @click="closeForm"
-            class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition"
+            class="text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 transition p-1 rounded cursor-pointer"
+            title="Cancel"
           >
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
@@ -343,120 +393,212 @@ const handleImportFile = (event) => {
 
         <!-- Rule Name -->
         <div>
-          <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
+          <label class="block text-xs font-semibold text-stone-600 dark:text-stone-400 mb-1 font-mono">
             Rule Name
           </label>
           <input
             v-model="ruleForm.name"
             type="text"
-            placeholder="e.g., Uber Rides Remark"
-            class="w-full px-3 py-2 rounded-md border border-slate-200 dark:border-slate-600
-                   bg-white dark:bg-slate-700 text-sm text-slate-700 dark:text-slate-200
-                   focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent
-                   placeholder:text-slate-400 dark:placeholder:text-slate-500"
+            placeholder="e.g., Etihad Passenger Alex"
+            class="w-full px-3 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700
+                   bg-white dark:bg-stone-800 text-xs text-stone-800 dark:text-stone-100
+                   focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono"
           />
         </div>
 
-        <!-- Match Field -->
+        <!-- Logic Gate (AND vs OR) -->
         <div>
-          <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
-            Match Field
-          </label>
-          <select
-            v-model="ruleForm.matchField"
-            class="w-full px-3 py-2 rounded-md border border-slate-200 dark:border-slate-600
-                   bg-white dark:bg-slate-700 text-sm text-slate-700 dark:text-slate-200
-                   focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+          <div class="flex items-center justify-between mb-1">
+            <label class="text-xs font-semibold text-stone-600 dark:text-stone-400 font-mono">
+              Conditions Logic
+            </label>
+            <span class="text-[10px] text-stone-400 font-mono">
+              {{ ruleForm.conditions.length }} condition{{ ruleForm.conditions.length === 1 ? '' : 's' }}
+            </span>
+          </div>
+          <div class="grid grid-cols-2 gap-1 p-1 bg-stone-100 dark:bg-stone-800/60 rounded-xl font-mono text-xs">
+            <button
+              type="button"
+              @click="ruleForm.conditionGate = 'AND'"
+              :class="[
+                'px-2 py-1 text-xs font-bold rounded-lg transition text-center cursor-pointer',
+                ruleForm.conditionGate === 'AND'
+                  ? 'bg-amber-500 text-stone-950 shadow-2xs font-black'
+                  : 'text-stone-500 hover:text-stone-800 dark:hover:text-stone-200'
+              ]"
+            >
+              ALL match (AND)
+            </button>
+            <button
+              type="button"
+              @click="ruleForm.conditionGate = 'OR'"
+              :class="[
+                'px-2 py-1 text-xs font-bold rounded-lg transition text-center cursor-pointer',
+                ruleForm.conditionGate === 'OR'
+                  ? 'bg-amber-500 text-stone-950 shadow-2xs font-black'
+                  : 'text-stone-500 hover:text-stone-800 dark:hover:text-stone-200'
+              ]"
+            >
+              ANY matches (OR)
+            </button>
+          </div>
+        </div>
+
+        <!-- Conditions Rows -->
+        <div class="space-y-2.5">
+          <div
+            v-for="(cond, index) in ruleForm.conditions"
+            :key="index"
+            class="p-2.5 rounded-xl border border-stone-200 dark:border-stone-800 bg-stone-50/70 dark:bg-stone-800/40 space-y-2 relative font-mono"
           >
-            <option v-for="field in matchFieldOptions" :key="field" :value="field">
-              {{ field }}
-            </option>
-          </select>
-          <p v-if="dataStore.headers.length === 0" class="text-xs text-slate-400 dark:text-slate-500 mt-1">
-            Upload a file to populate fields dynamically
-          </p>
-        </div>
+            <div class="flex items-center justify-between">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                Condition #{{ index + 1 }}
+              </span>
+              <button
+                v-if="ruleForm.conditions.length > 1"
+                type="button"
+                @click="removeCondition(index)"
+                class="text-rose-500 hover:text-rose-700 text-xs font-bold transition cursor-pointer"
+                title="Remove condition"
+              >
+                ✕ Remove
+              </button>
+            </div>
 
-        <!-- Match Type -->
-        <div>
-          <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
-            Match Type
-          </label>
-          <select
-            v-model="ruleForm.matchType"
-            class="w-full px-3 py-2 rounded-md border border-slate-200 dark:border-slate-600
-                   bg-white dark:bg-slate-700 text-sm text-slate-700 dark:text-slate-200
-                   focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+            <!-- Field + Operator -->
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-[10px] text-stone-400 mb-0.5">Field</label>
+                <select
+                  v-model="cond.field"
+                  class="w-full px-2 py-1 rounded-md border border-stone-200 dark:border-stone-700
+                         bg-white dark:bg-stone-800 text-xs text-stone-800 dark:text-stone-200"
+                >
+                  <option v-for="f in matchFieldOptions" :key="f" :value="f">{{ f }}</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-[10px] text-stone-400 mb-0.5">Operator</label>
+                <select
+                  v-model="cond.operator"
+                  class="w-full px-2 py-1 rounded-md border border-stone-200 dark:border-stone-700
+                         bg-white dark:bg-stone-800 text-xs text-stone-800 dark:text-stone-200"
+                >
+                  <option v-for="op in operatorOptions" :key="op.value" :value="op.value">
+                    {{ op.label }}
+                  </option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Value -->
+            <div>
+              <label class="block text-[10px] text-stone-400 mb-0.5">Match Value</label>
+              <input
+                v-model="cond.value"
+                type="text"
+                placeholder="e.g. Etihad, or 100"
+                class="w-full px-2 py-1 rounded-md border border-stone-200 dark:border-stone-700
+                       bg-white dark:bg-stone-800 text-xs text-stone-800 dark:text-stone-200 font-mono"
+              />
+            </div>
+          </div>
+
+          <button
+            type="button"
+            @click="addCondition"
+            class="w-full py-1.5 rounded-xl border border-dashed border-stone-300 dark:border-stone-700 hover:border-amber-500 text-amber-700 dark:text-amber-400 text-xs font-bold hover:bg-amber-50/50 transition flex items-center justify-center gap-1 cursor-pointer font-mono"
           >
-            <option v-for="type in matchTypeOptions" :key="type" :value="type">
-              {{ type }}
-            </option>
-          </select>
+            + Add Another Condition ({{ ruleForm.conditionGate }})
+          </button>
         </div>
 
-        <!-- Match Value -->
-        <div>
-          <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
-            Match Value
-          </label>
-          <input
-            v-model="ruleForm.matchValue"
-            type="text"
-            :placeholder="ruleForm.matchType === 'Regex' ? 'e.g., ^UBER\\d+' : 'e.g., UBER'"
-            class="w-full px-3 py-2 rounded-md border border-slate-200 dark:border-slate-600
-                   bg-white dark:bg-slate-700 text-sm text-slate-700 dark:text-slate-200
-                   focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent
-                   placeholder:text-slate-400 dark:placeholder:text-slate-500 font-mono"
-          />
-        </div>
+        <!-- Outputs ("Going Sideways") -->
+        <div class="pt-2 border-t border-stone-100 dark:border-stone-800 space-y-2">
+          <div class="flex items-center justify-between">
+            <label class="text-xs font-semibold text-stone-600 dark:text-stone-400 font-mono">
+              Output Remarks (Sideways)
+            </label>
+            <span class="text-[10px] text-stone-400 font-mono">
+              Populate columns
+            </span>
+          </div>
 
-        <!-- Output Column -->
-        <div>
-          <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
-            Output Column
-          </label>
-          <select
-            v-model="ruleForm.outputColumn"
-            class="w-full px-3 py-2 rounded-md border border-slate-200 dark:border-slate-600
-                   bg-white dark:bg-slate-700 text-sm text-slate-700 dark:text-slate-200
-                   focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+          <div
+            v-for="(out, index) in ruleForm.outputs"
+            :key="index"
+            class="p-2.5 rounded-xl border border-amber-300/80 dark:border-amber-800/60 bg-amber-50/30 dark:bg-stone-800/40 space-y-2 font-mono"
           >
-            <option v-for="col in outputColumnOptions" :key="col" :value="col">
-              {{ col }}
-            </option>
-          </select>
-        </div>
+            <div class="flex items-center justify-between">
+              <span class="text-[10px] font-bold text-amber-800 dark:text-amber-400">
+                Output Column #{{ index + 1 }}
+              </span>
+              <button
+                v-if="ruleForm.outputs.length > 1"
+                type="button"
+                @click="removeOutput(index)"
+                class="text-rose-500 hover:text-rose-700 text-xs font-bold transition cursor-pointer"
+              >
+                ✕ Remove
+              </button>
+            </div>
 
-        <!-- Output Value -->
-        <div>
-          <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
-            Output Value
-          </label>
-          <input
-            v-model="ruleForm.outputValue"
-            type="text"
-            placeholder="e.g., Travel Expense - Ride"
-            class="w-full px-3 py-2 rounded-md border border-slate-200 dark:border-slate-600
-                   bg-white dark:bg-slate-700 text-sm text-slate-700 dark:text-slate-200
-                   focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent
-                   placeholder:text-slate-400 dark:placeholder:text-slate-500"
-          />
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-[10px] text-stone-400 mb-0.5">Column</label>
+                <input
+                  v-model="out.column"
+                  type="text"
+                  placeholder="e.g., Remark 1"
+                  list="output-columns-list"
+                  class="w-full px-2 py-1 rounded-md border border-stone-200 dark:border-stone-700
+                         bg-white dark:bg-stone-800 text-xs text-stone-800 dark:text-stone-200 font-bold"
+                />
+                <datalist id="output-columns-list">
+                  <option v-for="c in outputColumnOptions" :key="c" :value="c" />
+                </datalist>
+              </div>
+
+              <div>
+                <label class="block text-[10px] text-stone-400 mb-0.5">Value</label>
+                <input
+                  v-model="out.value"
+                  type="text"
+                  placeholder="e.g., Traveling Expense"
+                  class="w-full px-2 py-1 rounded-md border border-stone-200 dark:border-stone-700
+                         bg-white dark:bg-stone-800 text-xs text-stone-800 dark:text-stone-200"
+                />
+              </div>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            @click="addOutput"
+            class="w-full py-1.5 rounded-xl border border-dashed border-stone-300 dark:border-stone-700 hover:border-amber-500 text-stone-600 dark:text-stone-300 text-xs font-bold hover:bg-stone-50 dark:hover:bg-stone-800 transition flex items-center justify-center gap-1 cursor-pointer font-mono"
+          >
+            + Add Another Output Remark
+          </button>
         </div>
 
         <!-- Form Actions -->
         <div class="flex gap-2 pt-2">
           <button
+            type="button"
             @click="saveRule"
-            class="flex-1 px-4 py-2 rounded-md bg-brand-600 text-white text-sm font-medium
-                   hover:bg-brand-700 transition"
+            class="flex-1 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-stone-950 text-xs font-black
+                   transition shadow-xs cursor-pointer font-mono"
           >
             Save Rule
           </button>
           <button
+            type="button"
             @click="closeForm"
-            class="px-4 py-2 rounded-md border border-slate-200 dark:border-slate-600
-                   text-slate-600 dark:text-slate-300 text-sm font-medium
-                   hover:bg-slate-50 dark:hover:bg-slate-700 transition"
+            class="px-4 py-2 rounded-xl border border-stone-200 dark:border-stone-700
+                   text-stone-600 dark:text-stone-300 text-xs font-medium font-mono
+                   hover:bg-stone-50 dark:hover:bg-stone-800 transition cursor-pointer"
           >
             Cancel
           </button>
@@ -471,20 +613,14 @@ const handleImportFile = (event) => {
         <!-- Empty State -->
         <div
           v-if="visibleRules.length === 0"
-          class="text-center text-sm text-slate-400 dark:text-slate-500 py-10"
+          class="text-center text-sm text-stone-400 dark:text-stone-500 py-10 font-mono"
         >
-          <svg class="w-10 h-10 mx-auto mb-3 text-slate-300 dark:text-slate-600"
-               fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-          </svg>
           <p class="font-medium">No rules in this profile.</p>
-          <p class="mt-1 text-xs">Click "Add Rule" to create a cleanup rule for this profile.</p>
+          <p class="mt-1 text-xs">Click "Add Rule" or inspect a row to create one.</p>
         </div>
 
         <!-- Rule Cards -->
-        <div v-else class="space-y-3">
-
+        <div v-else class="space-y-3 font-mono">
           <div
             v-for="(rule, index) in visibleRules"
             :key="rule.id"
@@ -495,36 +631,28 @@ const handleImportFile = (event) => {
             @drop.prevent="handleDrop(index, $event)"
             @dragend="handleDragEnd"
             :class="[
-              'bg-slate-50 dark:bg-slate-700/40 rounded-lg border p-3.5 group transition cursor-move',
+              'bg-stone-50/70 dark:bg-stone-800/40 rounded-2xl border p-3.5 group transition cursor-move',
               dragOverIndex === index && draggedRuleIndex !== null && draggedRuleIndex !== index
-                ? 'border-brand-500 ring-2 ring-brand-200 dark:ring-brand-500/30 scale-[1.02]'
-                : 'border-slate-200 dark:border-slate-600 hover:border-brand-300 dark:hover:border-brand-500',
+                ? 'border-amber-500 ring-2 ring-amber-300/40 scale-[1.01]'
+                : 'border-stone-200 dark:border-stone-700 hover:border-amber-400',
               draggedRuleIndex === index ? 'opacity-50' : ''
             ]"
           >
             <!-- Top Row: Drag Handle + Name + Actions -->
             <div class="flex items-start justify-between gap-2 mb-2">
               <div class="flex items-start gap-2 flex-1 min-w-0">
-                <!-- Drag Handle (six dots) -->
-                <div class="shrink-0 pt-0.5 text-slate-300 dark:text-slate-500 group-hover:text-slate-400 dark:group-hover:text-slate-300 transition">
-                  <svg class="w-3.5 h-4" fill="currentColor" viewBox="0 0 6 12">
-                    <circle cx="1" cy="1.5" r="1" />
-                    <circle cx="5" cy="1.5" r="1" />
-                    <circle cx="1" cy="6" r="1" />
-                    <circle cx="5" cy="6" r="1" />
-                    <circle cx="1" cy="10.5" r="1" />
-                    <circle cx="5" cy="10.5" r="1" />
-                  </svg>
+                <div class="shrink-0 pt-0.5 text-stone-300 dark:text-stone-600 group-hover:text-stone-400 transition">
+                  ⋮⋮
                 </div>
-                <h3 class="text-sm font-semibold text-slate-700 dark:text-slate-200 leading-tight flex-1 min-w-0 truncate">
+                <h3 class="text-xs font-bold text-stone-900 dark:text-stone-100 leading-tight flex-1 min-w-0 truncate">
                   {{ rule.name }}
                 </h3>
               </div>
               <div class="flex items-center gap-1 shrink-0">
-                <!-- Edit Button -->
                 <button
+                  type="button"
                   @click="editRule(rule)"
-                  class="p-1 rounded text-slate-400 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition"
+                  class="p-1 rounded text-stone-400 hover:text-amber-600 transition cursor-pointer"
                   title="Edit rule"
                 >
                   <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -532,10 +660,10 @@ const handleImportFile = (event) => {
                           d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828M11.828 15H9m0 0V12.172l6-6m-6 6l6-6" />
                   </svg>
                 </button>
-                <!-- Delete Button -->
                 <button
+                  type="button"
                   @click="deleteRule(rule.id)"
-                  class="p-1 rounded text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition"
+                  class="p-1 rounded text-stone-400 hover:text-rose-600 transition cursor-pointer"
                   title="Delete rule"
                 >
                   <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -546,85 +674,79 @@ const handleImportFile = (event) => {
               </div>
             </div>
 
-            <!-- Summary Badge -->
-            <div class="mb-2 ml-5.5">
-              <span class="inline-block text-xs font-mono bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300 rounded px-2 py-0.5">
-                {{ getRuleSummary(rule) }}
-              </span>
+            <!-- Conditions Pills -->
+            <div class="mb-2 ml-4 space-y-1">
+              <div class="flex items-center gap-1 flex-wrap">
+                <template v-for="(cond, cIdx) in getRuleConditions(rule)" :key="cIdx">
+                  <span
+                    v-if="cIdx > 0"
+                    class="text-[9px] font-black px-1 py-0.2 rounded bg-amber-200 text-stone-900 uppercase"
+                  >
+                    {{ rule.conditionGate || 'AND' }}
+                  </span>
+                  <span
+                    class="inline-block text-[10px] bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-300 border border-stone-200 dark:border-stone-700 rounded px-1.5 py-0.5"
+                  >
+                    [{{ cond.field }}] {{ cond.operator }} "{{ cond.value }}"
+                  </span>
+                </template>
+              </div>
             </div>
 
-            <!-- Output -->
-            <div class="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 ml-5.5">
-              <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M14 5l7 7m0 0l-7 7m7-7H3" />
-              </svg>
-              <span class="font-medium">{{ rule.outputColumn }}:</span>
-              <span class="truncate">{{ rule.outputValue || '(empty)' }}</span>
+            <!-- Output Remarks -->
+            <div class="ml-4 space-y-1 pt-1 border-t border-stone-200/60 dark:border-stone-700">
+              <div
+                v-for="(out, oIdx) in getRuleOutputs(rule)"
+                :key="oIdx"
+                class="flex items-center gap-1.5 text-[11px]"
+              >
+                <span class="font-bold text-stone-400">{{ out.column }}:</span>
+                <span class="font-bold text-amber-700 dark:text-amber-400 truncate">
+                  {{ out.value || '(empty)' }}
+                </span>
+              </div>
             </div>
           </div>
-
         </div>
       </div>
+
     </div>
 
-    <!-- ─── Footer (only in list mode) ─────────────────────── -->
-    <div
-      v-if="!isFormOpen"
-      class="px-5 py-4 border-t border-slate-200 dark:border-slate-700 shrink-0"
-    >
-      <!-- Action Buttons Row -->
-      <div class="flex gap-2 mb-2">
-        <button
-          @click="openForm"
-          class="flex-1 px-4 py-2 rounded-md bg-brand-600 text-white text-sm font-medium
-                 hover:bg-brand-700 transition flex items-center justify-center gap-2"
-        >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-          </svg>
-          Add Rule
-        </button>
+    <!-- ─── Footer / Actions ──────────────────────────────── -->
+    <div class="p-4 border-t border-stone-200 dark:border-stone-800 shrink-0 space-y-2 bg-stone-50/50 dark:bg-stone-900">
+      <button
+        v-if="!isFormOpen"
+        @click="openForm"
+        class="w-full px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-stone-950 text-xs font-black transition flex items-center justify-center gap-2 cursor-pointer shadow-xs font-mono"
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+        </svg>
+        Add New Rule
+      </button>
+
+      <div v-if="!isFormOpen" class="flex gap-2 font-mono">
         <button
           @click="handleExportRules"
-          :disabled="rulesStore.rules.length === 0"
-          class="px-3 py-2 rounded-md border border-slate-200 dark:border-slate-600
-                 text-slate-600 dark:text-slate-300 text-sm font-medium
-                 hover:bg-slate-50 dark:hover:bg-slate-700 transition disabled:opacity-40 disabled:cursor-not-allowed"
-          title="Export rules to JSON file"
+          class="flex-1 px-3 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 text-xs font-semibold hover:bg-stone-100 dark:hover:bg-stone-800 transition cursor-pointer"
         >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-          </svg>
+          Export Rules
         </button>
         <button
-          @click="handleImportClick"
-          class="px-3 py-2 rounded-md border border-slate-200 dark:border-slate-600
-                 text-slate-600 dark:text-slate-300 text-sm font-medium
-                 hover:bg-slate-50 dark:hover:bg-slate-700 transition"
-          title="Import rules from JSON file"
+          @click="triggerImportFile"
+          class="flex-1 px-3 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 text-xs font-semibold hover:bg-stone-100 dark:hover:bg-stone-800 transition cursor-pointer"
         >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" transform="rotate(180 12 12)" />
-          </svg>
+          Import Rules
         </button>
       </div>
 
-      <!-- Hidden file input for import -->
       <input
         ref="importFileInput"
         type="file"
         accept=".json"
         class="hidden"
-        @change="handleImportFile"
+        @change="handleImportRules"
       />
-
-      <!-- Helper text -->
-      <p class="text-xs text-slate-400 dark:text-slate-500 text-center mt-2">
-        Export to back up • Import to restore or share
-      </p>
     </div>
   </aside>
 </template>

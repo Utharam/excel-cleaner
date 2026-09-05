@@ -40,10 +40,48 @@ export const useRulesStore = defineStore('rules', () => {
     }
   }
 
+  const normalizeRuleData = (rule) => {
+    const conditions = Array.isArray(rule.conditions) && rule.conditions.length > 0
+      ? rule.conditions.map(c => ({
+          field: String(c.field || 'Particulars'),
+          operator: String(c.operator || 'Contains'),
+          value: String(c.value !== undefined ? c.value : '')
+        }))
+      : [{
+          field: String(rule.matchField || 'Particulars'),
+          operator: String(rule.matchType || 'Contains'),
+          value: String(rule.matchValue !== undefined ? rule.matchValue : '')
+        }]
+
+    const outputs = Array.isArray(rule.outputs) && rule.outputs.length > 0
+      ? rule.outputs.map(o => ({
+          column: String(o.column || 'Remark 1'),
+          value: String(o.value !== undefined ? o.value : '')
+        }))
+      : [{
+          column: String(rule.outputColumn || 'Remark 1'),
+          value: String(rule.outputValue !== undefined ? rule.outputValue : '')
+        }]
+
+    return {
+      ...rule,
+      conditionGate: rule.conditionGate === 'OR' ? 'OR' : 'AND',
+      conditions,
+      outputs,
+      // Legacy backwards-compatibility
+      matchField: conditions[0]?.field || 'Particulars',
+      matchType: conditions[0]?.operator || 'Contains',
+      matchValue: conditions[0]?.value || '',
+      outputColumn: outputs[0]?.column || 'Remark 1',
+      outputValue: outputs[0]?.value || '',
+    }
+  }
+
   const addRule = (rule) => {
+    const normalized = normalizeRuleData(rule)
     const newRule = {
       id: rule.id || crypto.randomUUID(),
-      ...rule,
+      ...normalized,
     }
     // Stamp profile — default to the currently active profile if not specified
     if (!newRule.profile) {
@@ -56,7 +94,8 @@ export const useRulesStore = defineStore('rules', () => {
   const updateRule = (id, updatedRule) => {
     const index = rules.value.findIndex((r) => r.id === id)
     if (index !== -1) {
-      rules.value[index] = { ...rules.value[index], ...updatedRule, id }
+      const normalized = normalizeRuleData(updatedRule)
+      rules.value[index] = { ...rules.value[index], ...normalized, id }
       // Preserve profile if not explicitly provided in the update
       if (!rules.value[index].profile) {
         rules.value[index].profile = activeProfile.value
@@ -130,16 +169,12 @@ export const useRulesStore = defineStore('rules', () => {
     let addedCount = 0
 
     for (const rule of importedRules) {
-      // Only import rules that have the minimum required fields
-      if (rule && typeof rule === 'object' && rule.name && rule.matchField) {
+      // Only import rules that have a name and at least one condition/matchField
+      if (rule && typeof rule === 'object' && rule.name && (rule.matchField || (rule.conditions && rule.conditions.length > 0))) {
+        const normalized = normalizeRuleData(rule)
         const newRule = {
           id: crypto.randomUUID(), // Always generate fresh ID
-          name: String(rule.name),
-          matchField: String(rule.matchField),
-          matchType: rule.matchType ? String(rule.matchType) : 'Contains',
-          matchValue: String(rule.matchValue || ''),
-          outputColumn: rule.outputColumn ? String(rule.outputColumn) : 'Remark 1',
-          outputValue: String(rule.outputValue || ''),
+          ...normalized,
           // Stamp with imported profile if valid, otherwise current active profile
           profile: (typeof rule.profile === 'string' && rule.profile.trim())
             ? rule.profile.trim()

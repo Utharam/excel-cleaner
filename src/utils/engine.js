@@ -1,3 +1,5 @@
+import { cleanAmount } from './cleaners.js'
+
 /**
  * Normalizes text for "Smart Matching" by stripping punctuation
  * and special characters so that values like "*UBER *EAT*" match
@@ -12,7 +14,7 @@
  * @param {*} text - The raw cell value or match value
  * @returns {string} The normalized string
  */
-const normalizeForMatch = (text) => {
+export const normalizeForMatch = (text) => {
   if (text === null || text === undefined) return ''
 
   let str = String(text).toLowerCase()
@@ -28,107 +30,194 @@ const normalizeForMatch = (text) => {
 }
 
 /**
- * Applies an array of rules to a single cleaned data row.
- * Pure function — does not mutate the input row.
+ * Evaluates a single condition against a cell value.
  *
- * Matching logic:
- * - Contains, Equals, Starts with, Ends with → Smart Matching (case-insensitive
- *   AND punctuation-stripped via normalizeForMatch on both cell and match value)
- * - Regex → case-sensitive, raw values (no normalization, user controls pattern)
- * - First rule to match an output column wins (no overwrite)
- * - If Remark 1 is empty after all rules, set to 'no rule given'
- *
- * Profile filtering:
- * - Only rules whose `profile` matches `activeProfile` (or are 'Global') are evaluated.
- * - Rules without a `profile` property (legacy data) are treated as 'Default'
- *   for backward compatibility with previously saved rules.
- *
- * @param {Object} row - The cleaned row object
- * @param {Array} rules - Array of rule objects from rulesStore
- * @param {string} [activeProfile='Default'] - The currently active rule profile
- * @returns {Object} New row object with Remark columns populated
+ * @param {*} cellValue - Cell value from row
+ * @param {string} operator - Match operator
+ * @param {*} matchValue - Value to compare against
+ * @returns {boolean}
  */
-export const applyRulesToRow = (row, rules, activeProfile = 'Default') => {
-  // Shallow copy — don't mutate the original
-  const result = { ...row }
+export const evaluateCondition = (cellValue, operator = 'Contains', matchValue) => {
+  const opStr = String(operator || '').trim().toLowerCase()
 
-  // Track which output columns have been filled by a rule (first wins)
-  const filledColumns = new Set()
+  // Numeric operators: >, <, >=, <=, ==, =, greater than, less than
+  const isNumeric = ['>', '<', '>=', '<=', '==', '=', 'greaterthan', 'greater than', 'lessthan', 'less than', 'greaterorequal', 'lessorequal'].includes(opStr)
+  if (isNumeric) {
+    const numCell = typeof cellValue === 'number' ? cellValue : cleanAmount(cellValue)
+    if (numCell === null || isNaN(numCell)) return false
 
-  // Ensure Remark columns exist as empty strings
-  if (!('Remark 1' in result)) result['Remark 1'] = ''
-  if (!('Remark 2' in result)) result['Remark 2'] = ''
+    let cleanMatchStr = String(matchValue).replace(/[^0-9.\-]/g, '')
+    const numMatch = parseFloat(cleanMatchStr)
+    if (isNaN(numMatch)) return false
 
-  for (const rule of rules) {
-    // ─── Profile filtering ──────────────────────────────────
-    // Legacy rules (no profile property) are treated as 'Default' so existing
-    // saved rules continue to match after this feature ships.
-    const ruleProfile = rule.profile || 'Default'
-    if (ruleProfile !== activeProfile && ruleProfile !== 'Global') {
-      continue
-    }
+    if (opStr === '>' || opStr === 'greaterthan' || opStr === 'greater than') return numCell > numMatch
+    if (opStr === '<' || opStr === 'lessthan' || opStr === 'less than') return numCell < numMatch
+    if (opStr === '>=' || opStr === 'greaterorequal') return numCell >= numMatch
+    if (opStr === '<=' || opStr === 'lessorequal') return numCell <= numMatch
+    if (opStr === '==' || opStr === '=' || opStr === 'equals') return numCell === numMatch
+    return false
+  }
 
-    const cellValue = result[rule.matchField]
+  // Text operators
+  const cellStr = cellValue === null || cellValue === undefined ? '' : String(cellValue)
+  const matchStr = matchValue === null || matchValue === undefined ? '' : String(matchValue)
 
-    // Skip if the cell is empty or undefined
-    if (cellValue === undefined || cellValue === null || cellValue === '') {
-      continue
-    }
+  // Empty match value cannot match anything
+  if (matchStr === '') return false
 
-    // Skip if this output column was already filled by a prior rule
-    if (filledColumns.has(rule.outputColumn)) {
-      continue
-    }
-
-    const cellStr = String(cellValue)
-    const matchStr = String(rule.matchValue)
-
-    // Skip if match value is empty
-    if (matchStr === '') {
-      continue
-    }
-
-    let isMatch = false
-
-    switch (rule.matchType) {
-      case 'Contains':
-        isMatch = normalizeForMatch(cellStr).includes(normalizeForMatch(matchStr))
-        break
-
-      case 'Equals':
-        isMatch = normalizeForMatch(cellStr) === normalizeForMatch(matchStr)
-        break
-
-      case 'Starts with':
-        isMatch = normalizeForMatch(cellStr).startsWith(normalizeForMatch(matchStr))
-        break
-
-      case 'Ends with':
-        isMatch = normalizeForMatch(cellStr).endsWith(normalizeForMatch(matchStr))
-        break
-
-      case 'Regex':
-        try {
-          const regex = new RegExp(matchStr)
-          isMatch = regex.test(cellStr)
-        } catch (e) {
-          // Invalid regex pattern — skip this rule
-          console.warn(`[Engine] Invalid regex in rule "${rule.name}": ${matchStr}`)
-          isMatch = false
-        }
-        break
-    }
-
-    if (isMatch) {
-      result[rule.outputColumn] = rule.outputValue
-      filledColumns.add(rule.outputColumn)
+  if (opStr === 'does not contain' || opStr === 'doesnotcontain' || opStr === 'notcontains' || opStr === 'not contains') {
+    return !normalizeForMatch(cellStr).includes(normalizeForMatch(matchStr))
+  }
+  if (opStr === 'equals' || opStr === 'exact') {
+    return normalizeForMatch(cellStr) === normalizeForMatch(matchStr)
+  }
+  if (opStr === 'starts with' || opStr === 'startswith') {
+    return normalizeForMatch(cellStr).startsWith(normalizeForMatch(matchStr))
+  }
+  if (opStr === 'ends with' || opStr === 'endswith') {
+    return normalizeForMatch(cellStr).endsWith(normalizeForMatch(matchStr))
+  }
+  if (opStr === 'regex') {
+    try {
+      const regex = new RegExp(matchStr, 'i')
+      return regex.test(cellStr)
+    } catch (e) {
+      console.warn(`[Engine] Invalid regex pattern: ${matchStr}`)
+      return false
     }
   }
 
-  // If Remark 1 is still empty after all rules, flag it
-  if (!result['Remark 1'] || result['Remark 1'].trim() === '') {
+  // Default: Contains
+  return normalizeForMatch(cellStr).includes(normalizeForMatch(matchStr))
+}
+
+/**
+ * Normalizes any rule (legacy or compound) into a standard multi-condition & multi-output format.
+ *
+ * @param {Object} rule
+ * @returns {{ id: string, name: string, profile: string, conditionGate: string, conditions: Array, outputs: Array }}
+ */
+export const normalizeRule = (rule) => {
+  const rawConditions = Array.isArray(rule.conditions) && rule.conditions.length > 0
+    ? rule.conditions
+    : [{
+        field: rule.matchField || rule.column || rule.field || 'Particulars',
+        operator: rule.matchType || rule.operator || 'Contains',
+        value: rule.matchValue !== undefined ? rule.matchValue : (rule.value !== undefined ? rule.value : '')
+      }]
+
+  const conditions = rawConditions.map(c => ({
+    field: c.field || c.column || c.matchField || 'Particulars',
+    operator: c.operator || c.matchType || 'Contains',
+    value: c.value !== undefined ? String(c.value) : (c.matchValue !== undefined ? String(c.matchValue) : '')
+  }))
+
+  const rawOutputs = Array.isArray(rule.outputs) && rule.outputs.length > 0
+    ? rule.outputs
+    : [{
+        column: rule.outputColumn || rule.column || 'Remark 1',
+        value: rule.outputValue !== undefined ? rule.outputValue : (rule.value !== undefined ? rule.value : '')
+      }]
+
+  const outputs = rawOutputs.map(o => ({
+    column: o.column || o.field || 'Remark 1',
+    value: o.value !== undefined ? String(o.value) : (o.outputValue !== undefined ? String(o.outputValue) : '')
+  }))
+
+  return {
+    id: rule.id,
+    name: rule.name || 'Untitled Rule',
+    profile: rule.profile || 'Default',
+    conditionGate: (rule.conditionGate === 'OR' || rule.matchType === 'any') ? 'OR' : 'AND',
+    conditions,
+    outputs,
+  }
+}
+
+/**
+ * Applies an array of rules to a single cleaned data row.
+ * Supports:
+ * - Compound multi-conditions with AND / OR gates
+ * - Cross-column matching (Particulars, Amount, Debit, Credit, etc.)
+ * - Numeric operators (>, <, >=, <=, ==)
+ * - Negative matching ("Does not contain")
+ * - Multi-output remark columns ("going sideways": Remark 1, Remark 2, Remark 3, etc.)
+ * - Bypassing rule application if enableRules is false ("Just Clean Up" mode)
+ *
+ * @param {Object} row - Cleaned row object
+ * @param {Array} rules - Array of rule objects from rulesStore
+ * @param {string} [activeProfile='Default'] - Currently active rule profile
+ * @param {boolean} [enableRules=true] - Whether to apply rules (false for "Just Clean Up" mode)
+ * @returns {Object} Processed row object
+ */
+export const applyRulesToRow = (row, rules, activeProfile = 'Default', enableRules = true) => {
+  // In "Just Clean Up" mode, return row without evaluating rules or appending remark columns
+  if (!enableRules) {
+    return { ...row }
+  }
+
+  const result = { ...row }
+  const filledColumns = new Set()
+
+  // Ensure default Remark 1 exists
+  if (!('Remark 1' in result)) result['Remark 1'] = ''
+
+  for (const rawRule of rules) {
+    const rule = normalizeRule(rawRule)
+
+    // Profile filtering
+    if (rule.profile !== activeProfile && rule.profile !== 'Global') {
+      continue
+    }
+
+    // Evaluate conditions based on gate (AND vs OR)
+    let isMatch = false
+    if (rule.conditionGate === 'OR') {
+      isMatch = rule.conditions.some(cond => evaluateCondition(result[cond.field], cond.operator, cond.value))
+    } else {
+      // AND gate: every condition must evaluate to true
+      isMatch = rule.conditions.every(cond => evaluateCondition(result[cond.field], cond.operator, cond.value))
+    }
+
+    if (isMatch) {
+      // Apply each output column (first-match-wins per output column)
+      for (const output of rule.outputs) {
+        if (!output.column) continue
+        if (!filledColumns.has(output.column)) {
+          result[output.column] = output.value
+          filledColumns.add(output.column)
+        }
+      }
+    }
+  }
+
+  // If Remark 1 is still empty after all rules, mark as unflagged
+  if (!result['Remark 1'] || String(result['Remark 1']).trim() === '') {
     result['Remark 1'] = 'no rule given'
   }
 
   return result
+}
+
+/**
+ * Extracts all unique output column names configured across active rules.
+ * E.g. ['Remark 1', 'Remark 2', 'Category']
+ *
+ * @param {Array} rules
+ * @param {string} activeProfile
+ * @returns {string[]}
+ */
+export const getActiveOutputColumns = (rules, activeProfile = 'Default') => {
+  const columns = new Set(['Remark 1'])
+  for (const rawRule of rules) {
+    const rule = normalizeRule(rawRule)
+    if (rule.profile === activeProfile || rule.profile === 'Global') {
+      for (const out of rule.outputs) {
+        if (out.column && out.column.trim()) {
+          columns.add(out.column.trim())
+        }
+      }
+    }
+  }
+  return Array.from(columns)
 }

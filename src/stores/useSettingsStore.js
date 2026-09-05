@@ -8,6 +8,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const isDark = ref(false)
   const defaultDateFormat = ref('US') // 'US' | 'INTL'
   const isHelpOpen = ref(false)      // Ephemeral — not persisted
+  const workflowMode = ref('cleanOnly') // 'cleanOnly' | 'rules'
 
   // ─── Actions ─────────────────────────────────────────────
   const toggleDarkMode = () => {
@@ -18,6 +19,12 @@ export const useSettingsStore = defineStore('settings', () => {
   const setDateFormat = (format) => {
     if (format === 'US' || format === 'INTL') {
       defaultDateFormat.value = format
+    }
+  }
+
+  const setWorkflowMode = (mode) => {
+    if (mode === 'cleanOnly' || mode === 'rules') {
+      workflowMode.value = mode
     }
   }
 
@@ -68,8 +75,10 @@ export const useSettingsStore = defineStore('settings', () => {
     isDark,
     defaultDateFormat,
     isHelpOpen,
+    workflowMode,
     toggleDarkMode,
     setDateFormat,
+    setWorkflowMode,
     toggleHelp,
     initializeTheme,
   }
