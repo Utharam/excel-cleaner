@@ -22,7 +22,9 @@ import {
   ArrowRight,
   SlidersHorizontal,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  FileText,
+  ClipboardCheck
 } from 'lucide-vue-next'
 
 const emit = defineEmits(['createRuleFromRow'])
@@ -305,6 +307,63 @@ const categorizedPercentage = computed(() => {
   return Math.round((matchedRows.value.length / totalRows.value) * 100)
 })
 
+// ─── Forensic Audit Telemetry ─────────────────────────────
+const forensicAudit = computed(() => {
+  let totalCells = 0
+  let spacesTrimmed = 0
+  let ascii160Purged = 0
+  let numbersCoerced = 0
+  let datesNormalized = 0
+  let blanksPreserved = 0
+
+  const dateFormat = settingsStore.defaultDateFormat
+
+  for (let r = 0; r < dataStore.rawData.length; r++) {
+    const rawRow = dataStore.rawData[r]
+    for (const h of dataStore.headers) {
+      totalCells++
+      const rawVal = rawRow[h]
+      const colType = dataStore.columnTypes ? (dataStore.columnTypes[h] || 'Text') : 'Text'
+
+      if (rawVal === null || rawVal === undefined || String(rawVal).trim() === '') {
+        blanksPreserved++
+        continue
+      }
+
+      const strVal = String(rawVal)
+      if (strVal.includes('\u00A0')) {
+        ascii160Purged++
+      }
+
+      if (colType === 'Amount') {
+        const cleaned = cleanAmount(rawVal)
+        if (typeof rawVal !== 'number' && typeof cleaned === 'number') {
+          numbersCoerced++
+        }
+      } else if (colType === 'Date' || dateHeaders.value.includes(h)) {
+        const res = normalizeDate(rawVal, dateFormat)
+        if (res.isValid && res.value !== String(rawVal)) {
+          datesNormalized++
+        }
+      } else {
+        const cleanedText = cleanParticulars(rawVal)
+        if (cleanedText !== strVal) {
+          spacesTrimmed++
+        }
+      }
+    }
+  }
+
+  return {
+    totalCells,
+    spacesTrimmed,
+    ascii160Purged,
+    numbersCoerced,
+    datesNormalized,
+    blanksPreserved,
+  }
+})
+
 // ─── Filtered & Paginated Rows ───────────────────────────
 const filteredRows = computed(() => {
   let list = processedData.value
@@ -381,9 +440,96 @@ const handleExport = () => {
   XLSX.writeFile(workbook, fileName)
 }
 
+// ─── CSV Audit Reconciliation Log Export ─────────────────
+const handleExportAuditLog = () => {
+  if (!dataStore.rawData.length) {
+    alert('No data to export audit log for.')
+    return
+  }
+
+  const logRows = [
+    ['Row Index', 'Column', 'Original Raw Input', 'Sanitized Output', 'Forensic Transformation Applied']
+  ]
+
+  const dateFormat = settingsStore.defaultDateFormat
+
+  for (let r = 0; r < dataStore.rawData.length; r++) {
+    const rawRow = dataStore.rawData[r]
+    const cleanRow = processedData.value[r] || {}
+    const rowNum = r + 1
+
+    for (const h of dataStore.headers) {
+      const rawVal = rawRow[h]
+      const cleanVal = cleanRow[h]
+      const colType = dataStore.columnTypes ? (dataStore.columnTypes[h] || 'Text') : 'Text'
+
+      if (rawVal === null || rawVal === undefined || String(rawVal).trim() === '') {
+        logRows.push([rowNum, h, '', 'null', 'Preserved honest blank (safe null)'])
+        continue
+      }
+
+      const strVal = String(rawVal)
+      let actions = []
+
+      if (strVal.includes('\u00A0')) {
+        actions.push('Purged ASCII 160 web non-breaking spaces')
+      }
+
+      if (colType === 'Amount') {
+        if (typeof rawVal !== 'number' && typeof cleanVal === 'number') {
+          actions.push(`Coerced text currency string to numeric float (${cleanVal})`)
+        }
+      } else if (colType === 'Date' || dateHeaders.value.includes(h)) {
+        if (cleanVal !== strVal) {
+          actions.push(`Normalized mixed date stamp to DD-MMM-YYYY (${cleanVal})`)
+        }
+      } else {
+        if (cleanVal !== strVal) {
+          actions.push('Collapsed whitespace & trimmed excess spaces')
+        }
+      }
+
+      if (actions.length > 0) {
+        logRows.push([rowNum, h, strVal, cleanVal !== null && cleanVal !== undefined ? String(cleanVal) : '', actions.join('; ')])
+      }
+    }
+
+    // Also log rule match remarks if in rules mode
+    if (settingsStore.workflowMode === 'rules') {
+      for (const col of activeRemarkColumns.value) {
+        if (cleanRow[col] && cleanRow[col] !== 'no rule given') {
+          logRows.push([rowNum, col, '—', cleanRow[col], 'Populated by Rule Match'])
+        }
+      }
+    }
+  }
+
+  // Convert array of rows to CSV
+  const csvContent = logRows.map(row => 
+    row.map(cell => {
+      const cellStr = cell === null || cell === undefined ? '' : String(cell)
+      if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
+        return `"${cellStr.replace(/"/g, '""')}"`
+      }
+      return cellStr
+    }).join(',')
+  ).join('\r\n')
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  const baseName = (dataStore.fileName || 'statement').replace(/\.[^/.]+$/, '')
+  link.setAttribute('href', url)
+  link.setAttribute('download', `audit-log-${baseName}.csv`)
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}
+
 defineExpose({
   parseFile,
   handleExport,
+  handleExportAuditLog,
   openFileBrowser,
   isMappingModalOpen,
 })
@@ -435,40 +581,40 @@ defineExpose({
       <div v-else class="space-y-6">
 
         <!-- ═══ TOP CONTROL DECK & HUD ═════════════════════════ -->
-        <div class="rounded-3xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-5 shadow-sm space-y-4">
+        <div class="rounded-2xl border border-[#E5E5E0] dark:border-stone-800 bg-white dark:bg-stone-900 p-5 shadow-xs space-y-4">
           
           <!-- Row 1: File Info & Workflow Mode & Main Actions -->
           <div class="flex items-center justify-between flex-wrap gap-4">
             
             <!-- File Badge & Name -->
             <div class="flex items-center gap-3">
-              <div class="w-11 h-11 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold text-lg">
-                🐒
+              <div class="w-10 h-10 rounded-xl bg-stone-100 dark:bg-stone-800 border border-[#E5E5E0] dark:border-stone-700 text-stone-800 dark:text-stone-200 flex items-center justify-center font-bold text-base font-mono">
+                XC
               </div>
               <div>
                 <div class="flex items-center gap-2">
-                  <h2 class="text-base sm:text-lg font-black text-stone-900 dark:text-stone-100 tracking-tight font-mono">
+                  <h2 class="text-base sm:text-lg font-bold text-[#111827] dark:text-stone-100 tracking-tight font-mono">
                     {{ dataStore.fileName }}
                   </h2>
-                  <span class="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-stone-100 dark:bg-stone-800 text-stone-500">
+                  <span class="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400 border border-stone-200 dark:border-stone-700">
                     {{ totalRows.toLocaleString() }} ROWS
                   </span>
                 </div>
-                <p class="text-xs text-stone-400 font-mono">
-                  Peeler Studio • Profile: <strong class="text-stone-700 dark:text-stone-300">{{ rulesStore.activeProfile }}</strong>
+                <p class="text-xs text-stone-500 font-mono">
+                  Audit Reconciliation Ledger • Profile: <strong class="text-stone-700 dark:text-stone-300">{{ rulesStore.activeProfile }}</strong>
                 </p>
               </div>
             </div>
 
             <!-- Workflow Mode Toggle -->
-            <div class="flex items-center bg-stone-100 dark:bg-stone-800/80 p-1 rounded-2xl border border-stone-200 dark:border-stone-700 font-mono text-xs">
+            <div class="flex items-center bg-stone-100 dark:bg-stone-800/80 p-1 rounded-xl border border-[#E5E5E0] dark:border-stone-700 font-mono text-xs">
               <button
                 type="button"
                 @click="settingsStore.setWorkflowMode('cleanOnly')"
                 :class="[
-                  'px-3.5 py-1.5 rounded-xl font-bold transition cursor-pointer flex items-center gap-1.5',
+                  'px-3.5 py-1.5 rounded-lg font-semibold transition cursor-pointer flex items-center gap-1.5',
                   settingsStore.workflowMode === 'cleanOnly'
-                    ? 'bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 shadow-xs'
+                    ? 'bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 shadow-2xs font-bold'
                     : 'text-stone-500 hover:text-stone-800 dark:hover:text-stone-200'
                 ]"
               >
@@ -478,9 +624,9 @@ defineExpose({
                 type="button"
                 @click="settingsStore.setWorkflowMode('rules')"
                 :class="[
-                  'px-3.5 py-1.5 rounded-xl font-bold transition cursor-pointer flex items-center gap-1.5',
+                  'px-3.5 py-1.5 rounded-lg font-semibold transition cursor-pointer flex items-center gap-1.5',
                   settingsStore.workflowMode === 'rules'
-                    ? 'bg-amber-500 text-stone-950 font-black shadow-xs'
+                    ? 'bg-emerald-800 text-white font-bold shadow-2xs'
                     : 'text-stone-500 hover:text-stone-800 dark:hover:text-stone-200'
                 ]"
               >
@@ -488,21 +634,31 @@ defineExpose({
               </button>
             </div>
 
-            <!-- Primary Export Button -->
-            <div class="flex items-center gap-2">
+            <!-- Action Buttons: Excel + Audit Log CSV + Clear -->
+            <div class="flex items-center gap-2 flex-wrap">
               <button
                 type="button"
                 @click="handleExport"
-                class="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold text-xs transition flex items-center gap-2 shadow-xs cursor-pointer active:scale-95 font-mono"
+                class="px-4 py-2 rounded-lg bg-emerald-800 hover:bg-emerald-900 text-white font-semibold text-xs transition flex items-center gap-2 shadow-xs cursor-pointer active:scale-95 font-mono"
               >
                 <Download class="w-4 h-4" />
-                <span>{{ settingsStore.workflowMode === 'rules' ? 'Export Categorized Excel' : 'Export Cleaned Excel' }}</span>
+                <span>{{ settingsStore.workflowMode === 'rules' ? 'Export Categorized Excel' : 'Export Sanitized Excel' }}</span>
+              </button>
+
+              <button
+                type="button"
+                @click="handleExportAuditLog"
+                class="px-3.5 py-2 rounded-lg bg-stone-50 dark:bg-stone-800 hover:bg-stone-100 dark:hover:bg-stone-750 text-stone-700 dark:text-stone-300 border border-[#E5E5E0] dark:border-stone-700 font-semibold text-xs transition flex items-center gap-1.5 cursor-pointer active:scale-95 font-mono"
+                title="Download CSV log detailing every cell modified with forensic trace"
+              >
+                <FileText class="w-3.5 h-3.5 text-stone-500" />
+                <span class="hidden sm:inline">Audit Log (.csv)</span>
               </button>
 
               <button
                 type="button"
                 @click="handleClearData"
-                class="px-3 py-2 rounded-xl border border-rose-200 dark:border-rose-900/60 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-600 text-xs font-semibold transition cursor-pointer font-mono"
+                class="px-3 py-2 rounded-lg border border-rose-200 dark:border-rose-900/60 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-600 text-xs font-semibold transition cursor-pointer font-mono"
                 title="Clear statement"
               >
                 Clear
@@ -511,27 +667,42 @@ defineExpose({
 
           </div>
 
-          <!-- Row 2: Telemetry Metrics & Date Mode Switcher -->
+          <!-- Row 2: Forensic Telemetry Metrics & Date Mode Switcher -->
           <div class="pt-3 border-t border-stone-100 dark:border-stone-800 flex items-center justify-between flex-wrap gap-3 text-xs">
             
             <!-- Quick Stat Badges -->
-            <div class="flex items-center gap-2 flex-wrap font-mono">
-              <div class="px-2.5 py-1 rounded-lg bg-stone-50 dark:bg-stone-800/50 border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300">
-                <span class="text-stone-400 mr-1">PEELED:</span>
-                <strong class="text-emerald-600 dark:text-emerald-400">100%</strong>
+            <div class="flex items-center gap-2 flex-wrap font-mono text-[11px]">
+              <div class="px-2.5 py-1 rounded-md bg-stone-50 dark:bg-stone-800/50 border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300">
+                <span class="text-stone-400 mr-1">CELLS:</span>
+                <strong class="text-stone-900 dark:text-stone-100">{{ forensicAudit.totalCells.toLocaleString() }}</strong>
               </div>
 
-              <div v-if="settingsStore.workflowMode === 'rules'" class="px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-emerald-800 dark:text-emerald-300">
+              <div class="px-2.5 py-1 rounded-md bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200">
+                <span class="opacity-75 mr-1">SPACES &amp; ASCII 160:</span>
+                <strong>{{ (forensicAudit.spacesTrimmed + forensicAudit.ascii160Purged).toLocaleString() }} purged</strong>
+              </div>
+
+              <div class="px-2.5 py-1 rounded-md bg-stone-50 dark:bg-stone-800/50 border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300">
+                <span class="text-stone-400 mr-1">NUMBERS COERCED:</span>
+                <strong class="text-stone-900 dark:text-stone-100">{{ forensicAudit.numbersCoerced }}</strong>
+              </div>
+
+              <div class="px-2.5 py-1 rounded-md bg-stone-50 dark:bg-stone-800/50 border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300">
+                <span class="text-stone-400 mr-1">SAFE NULLS:</span>
+                <strong class="text-stone-900 dark:text-stone-100">{{ forensicAudit.blanksPreserved }}</strong>
+              </div>
+
+              <div v-if="settingsStore.workflowMode === 'rules'" class="px-2.5 py-1 rounded-md bg-emerald-100 dark:bg-emerald-900/40 border border-emerald-300 dark:border-emerald-700 text-emerald-950 dark:text-emerald-200">
                 <span class="opacity-75 mr-1">CATEGORIZED:</span>
                 <strong>{{ matchedRows.length }} ({{ categorizedPercentage }}%)</strong>
               </div>
 
-              <div v-if="settingsStore.workflowMode === 'rules'" class="px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-amber-900 dark:text-amber-300">
-                <span class="opacity-75 mr-1">NEEDS REVIEW:</span>
+              <div v-if="settingsStore.workflowMode === 'rules' && unmatchedRows.length > 0" class="px-2.5 py-1 rounded-md bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200">
+                <span class="opacity-75 mr-1">REVIEW:</span>
                 <strong>{{ unmatchedRows.length }}</strong>
               </div>
 
-              <div v-if="dateErrorRows.length > 0" class="px-2.5 py-1 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60 text-rose-800 dark:text-rose-300">
+              <div v-if="dateErrorRows.length > 0" class="px-2.5 py-1 rounded-md bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300">
                 <span class="opacity-75 mr-1">DATE WARNINGS:</span>
                 <strong>{{ dateErrorRows.length }}</strong>
               </div>
@@ -540,13 +711,13 @@ defineExpose({
             <!-- Date Calibration Switch -->
             <div class="flex items-center gap-2 font-mono">
               <span class="text-stone-400 text-[11px]">DATE INPUT:</span>
-              <div class="flex rounded-lg overflow-hidden border border-stone-200 dark:border-stone-700 text-[11px]">
+              <div class="flex rounded-md overflow-hidden border border-stone-200 dark:border-stone-700 text-[11px]">
                 <button
                   type="button"
                   @click="settingsStore.setDateFormat('US')"
                   :class="[
-                    'px-2.5 py-1 transition cursor-pointer font-bold',
-                    settingsStore.defaultDateFormat === 'US' ? 'bg-stone-950 text-white dark:bg-amber-500 dark:text-stone-950' : 'bg-white dark:bg-stone-800 text-stone-500'
+                    'px-2 py-0.5 transition cursor-pointer font-semibold',
+                    settingsStore.defaultDateFormat === 'US' ? 'bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900' : 'bg-white dark:bg-stone-800 text-stone-500'
                   ]"
                 >
                   US (MM/DD)
@@ -555,8 +726,8 @@ defineExpose({
                   type="button"
                   @click="settingsStore.setDateFormat('INTL')"
                   :class="[
-                    'px-2.5 py-1 transition cursor-pointer font-bold border-l border-stone-200 dark:border-stone-700',
-                    settingsStore.defaultDateFormat === 'INTL' ? 'bg-stone-950 text-white dark:bg-amber-500 dark:text-stone-950' : 'bg-white dark:bg-stone-800 text-stone-500'
+                    'px-2 py-0.5 transition cursor-pointer font-semibold border-l border-stone-200 dark:border-stone-700',
+                    settingsStore.defaultDateFormat === 'INTL' ? 'bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900' : 'bg-white dark:bg-stone-800 text-stone-500'
                   ]"
                 >
                   INTL (DD/MM)
@@ -913,9 +1084,9 @@ defineExpose({
 
                     <ArrowRight class="w-3.5 h-3.5 text-stone-300 shrink-0" />
 
-                    <!-- Peeled -->
+                    <!-- Sanitized -->
                     <div class="flex-1 font-bold text-stone-900 dark:text-stone-100 truncate" :title="String(selectedRow[header] ?? '—')">
-                      <span class="text-[9px] uppercase tracking-wider block text-amber-600 dark:text-amber-400 font-sans">Peeled:</span>
+                      <span class="text-[9px] uppercase tracking-wider block text-emerald-700 dark:text-emerald-400 font-sans">Sanitized:</span>
                       <span v-if="selectedRow[header] === null" class="text-stone-400 italic">null</span>
                       <span v-else-if="typeof selectedRow[header] === 'number'" class="text-emerald-600 dark:text-emerald-400">
                         {{ selectedRow[header].toFixed(2) }}

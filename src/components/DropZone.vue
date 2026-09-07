@@ -51,71 +51,71 @@ const openFileBrowser = () => {
       @dragleave.prevent="handleDragLeave"
       @drop.prevent="handleDrop"
       :class="[
-        'relative group rounded-3xl border-2 border-dashed p-6 sm:p-8 transition-all duration-200 text-center bg-white dark:bg-stone-900 shadow-sm',
+        'relative group rounded-2xl border-2 border-dashed p-7 sm:p-10 transition-all duration-200 text-center bg-white dark:bg-stone-900 shadow-xs',
         isDragging
-          ? 'border-amber-500 bg-amber-50/70 dark:bg-amber-950/40 scale-[1.01] shadow-md shadow-amber-500/10'
-          : 'border-stone-300 dark:border-stone-700 hover:border-amber-500 hover:bg-stone-50/80 dark:hover:bg-stone-850'
+          ? 'border-emerald-700 bg-emerald-50/50 dark:bg-emerald-950/30 scale-[1.01] shadow-md shadow-emerald-700/10'
+          : 'border-[#D1D5DB] dark:border-stone-700 hover:border-emerald-700 hover:bg-stone-50/50 dark:hover:bg-stone-850'
       ]"
     >
       <input
         ref="fileInput"
         type="file"
-        accept=".xlsx, .xls, .csv"
+        accept=".xlsx, .xls, .csv, .tsv"
         class="hidden"
         @change="handleFileSelect"
       />
 
       <div class="space-y-4 flex flex-col items-center">
-        <!-- Mascot/Upload Icon Pill -->
+        <!-- File Icon -->
         <div
-          class="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-500 to-yellow-500 text-stone-950 flex items-center justify-center shadow-lg shadow-amber-500/25 group-hover:scale-105 transition-transform"
+          class="w-12 h-12 rounded-xl bg-stone-100 dark:bg-stone-800 text-emerald-800 dark:text-emerald-400 flex items-center justify-center border border-[#E5E5E0] dark:border-stone-700 group-hover:scale-105 transition-transform"
         >
-          <Upload v-if="!props.isLoading" class="w-7 h-7 stroke-[2.2]" />
+          <Upload v-if="!props.isLoading" class="w-6 h-6 stroke-[2]" />
           <div
             v-else
-            class="w-6 h-6 border-3 border-stone-950 border-t-transparent rounded-full animate-spin"
+            class="w-5 h-5 border-2 border-emerald-800 border-t-transparent rounded-full animate-spin"
           />
         </div>
 
         <div class="space-y-1">
-          <h3 class="text-base sm:text-lg font-black text-stone-900 dark:text-stone-100 tracking-tight">
-            Drop your bank statement or ledger here
+          <h3 class="text-base sm:text-lg font-bold text-stone-900 dark:text-stone-100 tracking-tight">
+            Drag and drop .xlsx, .csv, or .tsv here
           </h3>
-          <p class="text-xs text-stone-500 dark:text-stone-400">
-            Supports <strong class="text-stone-700 dark:text-stone-300">.xlsx</strong>, <strong class="text-stone-700 dark:text-stone-300">.xls</strong>, or <strong class="text-stone-700 dark:text-stone-300">.csv</strong>
+          <p class="text-xs text-stone-500 font-mono">
+            Files are processed 100% in local memory. Zero bytes leave your machine.
           </p>
         </div>
 
         <!-- Buttons Row -->
-        <div class="flex flex-wrap items-center justify-center gap-2.5 pt-1">
+        <div class="flex flex-wrap items-center justify-center gap-3 pt-2">
           <button
             type="button"
             @click="openFileBrowser"
             :disabled="props.isLoading"
-            class="px-4 py-2.5 rounded-xl bg-stone-950 hover:bg-stone-800 text-white text-xs sm:text-sm font-bold shadow-xs hover:shadow transition-all flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
+            class="px-4 py-2.5 rounded-lg bg-emerald-800 hover:bg-emerald-900 text-white text-xs sm:text-sm font-semibold shadow-xs transition-all flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50 font-mono"
           >
-            <FileSpreadsheet class="w-4 h-4 text-amber-400" />
-            <span>Choose an Excel File</span>
+            <FileSpreadsheet class="w-4 h-4" />
+            <span>Browse Local File</span>
           </button>
 
           <button
             type="button"
             @click="emit('loadDemo')"
             :disabled="props.isLoading"
-            class="px-3.5 py-2.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-950 border border-amber-300/80 text-xs sm:text-sm font-bold transition-all flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50 shadow-xs"
-            title="Load a messy sample statement with mixed dates and numbers to test instantly"
+            class="px-4 py-2.5 rounded-lg bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 border border-[#E5E5E0] dark:border-stone-700 text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50 font-mono"
+            title="Load simulated dirty QuickBooks/SAP ledger with ASCII 160 web spaces, text numbers, and irregular dates"
           >
-            <Sparkles class="w-4 h-4 text-amber-600" />
-            <span>Load Sample Statement</span>
+            <Sparkles class="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
+            <span>Load Sample Dirty ERP Ledger</span>
           </button>
         </div>
       </div>
     </div>
 
     <!-- Security & Offline Subtext -->
-    <div class="flex items-center justify-center gap-2 text-stone-500 dark:text-stone-400 text-[11px] font-medium font-mono">
-      <ShieldCheck class="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-      <span>100% In-Browser Memory • Zero Server Uploads • Safe for Client Data</span>
+    <div class="flex items-center justify-center gap-2 text-stone-500 dark:text-stone-400 text-[11px] font-mono">
+      <ShieldCheck class="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400 shrink-0" />
+      <span>Forensic Client-Side Engine • Zero Server Storage • Safe for Sensitive Client GLs</span>
     </div>
   </div>
 </template>

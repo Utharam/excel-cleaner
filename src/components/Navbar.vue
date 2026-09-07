@@ -33,15 +33,15 @@ const emit = defineEmits([
 </script>
 
 <template>
-  <nav class="bg-white/95 dark:bg-stone-950/95 backdrop-blur-md border-b border-stone-200 dark:border-stone-800 sticky top-0 z-40 shadow-xs transition-colors">
+  <nav class="bg-[#FBFBFA]/95 dark:bg-stone-950/95 backdrop-blur-md border-b border-[#E5E5E0] dark:border-stone-800 sticky top-0 z-40 transition-colors">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
       
-      <!-- Brand & Mascot -->
+      <!-- Brand & Title -->
       <div class="flex items-center gap-3">
         <button
           type="button"
           @click="emit('backToHome')"
-          class="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-500 to-yellow-500 text-stone-950 flex items-center justify-center shadow-md shadow-amber-500/20 text-xl hover:scale-105 active:scale-95 transition cursor-pointer select-none"
+          class="w-9 h-9 rounded-xl bg-stone-900 text-amber-400 flex items-center justify-center border border-stone-800 text-lg hover:bg-stone-800 transition cursor-pointer select-none"
           title="SheetMonkey - Home"
         >
           🐒
@@ -50,24 +50,24 @@ const emit = defineEmits([
           <div class="flex items-center gap-2">
             <span
               @click="emit('backToHome')"
-              class="text-lg font-black text-stone-900 dark:text-stone-100 tracking-tight cursor-pointer hover:text-amber-600 dark:hover:text-amber-400 transition"
+              class="text-base sm:text-lg font-bold text-stone-900 dark:text-stone-100 tracking-tight cursor-pointer hover:text-emerald-800 transition"
             >
               SheetMonkey
             </span>
+            <span class="text-xs text-stone-400 font-mono hidden sm:inline">the spreadsheet cleaner</span>
             <a
               href="https://utharam.github.io/"
               target="_blank"
               rel="noopener noreferrer"
-              class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/70 hover:bg-amber-200 text-amber-900 dark:text-amber-300 border border-amber-300/60 dark:border-amber-700/60 uppercase tracking-wide transition cursor-pointer font-mono"
+              class="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 text-stone-600 dark:text-stone-300 border border-stone-200 dark:border-stone-700 transition cursor-pointer font-mono"
               title="Visit Utharam (utharam.github.io)"
             >
               by Utharam
             </a>
           </div>
-          <p class="text-[11px] text-stone-500 dark:text-stone-400 font-medium hidden sm:flex items-center gap-1.5">
-            <span>The Spreadsheet Monkey • Bank Statement &amp; Ledger Engine</span>
-            <span class="text-stone-300 dark:text-stone-700">•</span>
-            <span class="text-amber-600 dark:text-amber-400 font-mono text-[10px]">[PEELER ENGINE v2.4]</span>
+          <p class="text-[11px] text-stone-500 font-mono hidden md:flex items-center gap-1.5">
+            <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
+            <span>In-Browser Client-Side Engine • Zero External Server Calls</span>
           </p>
         </div>
       </div>
@@ -78,22 +78,22 @@ const emit = defineEmits([
           <button
             type="button"
             @click="emit('goToBento')"
-            class="hover:text-amber-600 dark:hover:text-amber-400 transition cursor-pointer"
+            class="hover:text-emerald-800 dark:hover:text-emerald-400 transition cursor-pointer"
           >
-            Assembly Line
+            Cleaning Matrix
           </button>
           <button
             type="button"
             @click="emit('goToSandbox')"
-            class="hover:text-amber-600 dark:hover:text-amber-400 transition cursor-pointer flex items-center gap-1"
+            class="hover:text-emerald-800 dark:hover:text-emerald-400 transition cursor-pointer flex items-center gap-1"
           >
-            <GitFork class="w-3 h-3 text-amber-500" />
-            <span>Rule Sandbox</span>
+            <GitFork class="w-3 h-3 text-stone-500" />
+            <span>Rule Engine</span>
           </button>
           <button
             type="button"
             @click="emit('goToDocs')"
-            class="hover:text-amber-600 dark:hover:text-amber-400 transition cursor-pointer flex items-center gap-1"
+            class="hover:text-emerald-800 dark:hover:text-emerald-400 transition cursor-pointer flex items-center gap-1"
           >
             <HelpCircle class="w-3.5 h-3.5" />
             <span>Docs</span>
@@ -103,11 +103,11 @@ const emit = defineEmits([
           <button
             type="button"
             @click="emit('openPrivacyModal')"
-            class="flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 border border-amber-300/80 dark:border-amber-800/80 text-amber-900 dark:text-amber-300 text-[11px] font-bold transition cursor-pointer font-mono"
+            class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 border border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200 text-[11px] font-semibold transition cursor-pointer font-mono"
             title="Click to see why your financial data never leaves your device"
           >
-            <ShieldCheck class="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-            <span>Safe &amp; Private (0 Uploads)</span>
+            <ShieldCheck class="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
+            <span>100% Private (0 Uploads)</span>
           </button>
         </div>
 
@@ -116,7 +116,7 @@ const emit = defineEmits([
             href="https://github.com/Utharam/excel-cleaner"
             target="_blank"
             rel="noreferrer"
-            class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-stone-200 dark:border-stone-800 hover:bg-stone-50 dark:hover:bg-stone-900 text-stone-700 dark:text-stone-300 text-xs font-semibold transition font-mono"
+            class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#E5E5E0] dark:border-stone-800 hover:bg-stone-50 dark:hover:bg-stone-900 text-stone-700 dark:text-stone-300 text-xs font-semibold transition font-mono"
             title="Open Source on GitHub"
           >
             <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
@@ -132,10 +132,10 @@ const emit = defineEmits([
           <button
             type="button"
             @click="emit('goToUpload')"
-            class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-stone-950 hover:bg-stone-800 text-white text-xs font-bold transition shadow-xs hover:shadow cursor-pointer active:scale-95 font-mono"
+            class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-semibold transition shadow-xs cursor-pointer active:scale-95 font-mono"
           >
-            <span>Clean Statement</span>
-            <ArrowRight class="w-3.5 h-3.5 text-amber-400" />
+            <span>Sanitize File</span>
+            <ArrowRight class="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
@@ -144,8 +144,8 @@ const emit = defineEmits([
       <div v-else class="flex items-center gap-3 flex-wrap justify-end">
         
         <!-- File Info Badge -->
-        <div class="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-stone-100 dark:bg-stone-900 border border-stone-200 dark:border-stone-800 text-xs font-mono">
-          <FileSpreadsheet class="w-4 h-4 text-amber-600 dark:text-amber-400" />
+        <div class="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-stone-100 dark:bg-stone-900 border border-[#E5E5E0] dark:border-stone-800 text-xs font-mono">
+          <FileSpreadsheet class="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
           <div class="text-left leading-tight">
             <span class="font-bold text-stone-900 dark:text-stone-100 block truncate max-w-[220px]" :title="props.fileName">
               {{ props.fileName }}
@@ -160,10 +160,10 @@ const emit = defineEmits([
         <button
           type="button"
           @click="emit('openPrivacyModal')"
-          class="hidden lg:flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300/80 dark:border-amber-800/80 text-amber-900 dark:text-amber-300 text-xs font-mono font-bold transition cursor-pointer"
+          class="hidden lg:flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200 text-xs font-mono font-semibold transition cursor-pointer"
           title="Safe & Private"
         >
-          <ShieldCheck class="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+          <ShieldCheck class="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
           <span>Private Memory</span>
         </button>
 
@@ -171,7 +171,7 @@ const emit = defineEmits([
         <button
           type="button"
           @click="emit('triggerExport')"
-          class="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-stone-950 text-xs font-bold transition shadow-xs hover:shadow cursor-pointer active:scale-95 font-mono"
+          class="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold transition shadow-xs cursor-pointer active:scale-95 font-mono"
         >
           <Download class="w-3.5 h-3.5" />
           <span>Export Excel</span>

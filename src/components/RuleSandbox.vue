@@ -90,15 +90,15 @@ const isRuleMatch = computed(() => {
 </script>
 
 <template>
-  <section id="rule-sandbox" class="py-16 bg-white dark:bg-stone-950 border-b border-stone-200 dark:border-stone-800">
+  <section id="rule-sandbox" class="py-16 bg-white dark:bg-stone-950 border-b border-[#E5E5E0] dark:border-stone-800">
     <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
       
       <div class="text-center max-w-xl mx-auto mb-10 space-y-2">
-        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 text-amber-900 dark:text-amber-300 text-xs font-mono font-bold uppercase tracking-wider">
-          <Sparkles class="w-3.5 h-3.5 text-amber-500" />
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-300 text-xs font-mono font-semibold uppercase tracking-wider">
+          <Sparkles class="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
           <span>INTERACTIVE RULE SIMULATOR</span>
         </div>
-        <h2 class="text-2xl sm:text-3xl font-black text-stone-900 dark:text-stone-100 tracking-tight">
+        <h2 class="text-2xl sm:text-3xl font-black text-[#111827] dark:text-stone-100 tracking-tight">
           Test Multi-Conditions Live
         </h2>
         <p class="text-xs sm:text-sm text-stone-500 dark:text-stone-400">
@@ -113,7 +113,7 @@ const isRuleMatch = computed(() => {
             :key="p.name"
             type="button"
             @click="loadPreset(p)"
-            class="px-2.5 py-1 rounded-lg text-xs font-medium bg-stone-100 dark:bg-stone-900 hover:bg-amber-100 dark:hover:bg-amber-950/60 text-stone-700 dark:text-stone-300 border border-stone-200 dark:border-stone-800 transition cursor-pointer"
+            class="px-2.5 py-1 rounded-lg text-xs font-medium bg-stone-100 dark:bg-stone-900 hover:bg-emerald-50 dark:hover:bg-emerald-950/60 text-stone-700 dark:text-stone-300 border border-stone-200 dark:border-stone-800 hover:border-emerald-300 transition cursor-pointer"
           >
             {{ p.name }}
           </button>
@@ -121,13 +121,13 @@ const isRuleMatch = computed(() => {
       </div>
 
       <!-- Simulator Box -->
-      <div class="rounded-3xl border border-stone-200 dark:border-stone-800 bg-stone-50/50 dark:bg-stone-900/40 p-6 sm:p-8 shadow-lg grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div class="rounded-2xl border border-[#E5E5E0] dark:border-stone-800 bg-[#FBFBFA] dark:bg-stone-900/40 p-6 sm:p-8 shadow-xs grid grid-cols-1 lg:grid-cols-12 gap-6">
         
         <!-- Left 7 cols: Inputs & Conditions -->
         <div class="lg:col-span-7 space-y-5">
           
           <!-- Sample Row Input -->
-          <div class="p-4 rounded-2xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 shadow-xs space-y-3">
+          <div class="p-4 rounded-xl bg-white dark:bg-stone-900 border border-[#E5E5E0] dark:border-stone-800 shadow-2xs space-y-3">
             <h4 class="text-xs font-mono font-bold text-stone-500 uppercase tracking-wider flex items-center gap-1.5">
               <span>Step 1: Input Transaction Row</span>
             </h4>
@@ -137,7 +137,7 @@ const isRuleMatch = computed(() => {
                 <input
                   v-model="testDescription"
                   type="text"
-                  class="w-full px-3 py-2 text-xs font-mono rounded-xl border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-900 dark:text-stone-100 focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
+                  class="w-full px-3 py-2 text-xs font-mono rounded-lg border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-900 dark:text-stone-100 focus:ring-2 focus:ring-emerald-700 focus:outline-hidden"
                 />
               </div>
               <div>
@@ -145,14 +145,14 @@ const isRuleMatch = computed(() => {
                 <input
                   v-model="testAmount"
                   type="text"
-                  class="w-full px-3 py-2 text-xs font-mono rounded-xl border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-900 dark:text-stone-100 focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
+                  class="w-full px-3 py-2 text-xs font-mono rounded-lg border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-900 dark:text-stone-100 focus:ring-2 focus:ring-emerald-700 focus:outline-hidden"
                 />
               </div>
             </div>
           </div>
 
           <!-- Compound Rule Config -->
-          <div class="p-4 rounded-2xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 shadow-xs space-y-3">
+          <div class="p-4 rounded-xl bg-white dark:bg-stone-900 border border-[#E5E5E0] dark:border-stone-800 shadow-2xs space-y-3">
             <div class="flex items-center justify-between">
               <h4 class="text-xs font-mono font-bold text-stone-500 uppercase tracking-wider">
                 Step 2: Rule Logic
@@ -163,7 +163,7 @@ const isRuleMatch = computed(() => {
                   @click="gate = 'AND'"
                   :class="[
                     'px-2.5 py-0.5 transition cursor-pointer font-bold',
-                    gate === 'AND' ? 'bg-amber-500 text-stone-950' : 'bg-stone-100 dark:bg-stone-800 text-stone-500'
+                    gate === 'AND' ? 'bg-emerald-800 text-white' : 'bg-stone-100 dark:bg-stone-800 text-stone-500'
                   ]"
                 >
                   AND
@@ -173,7 +173,7 @@ const isRuleMatch = computed(() => {
                   @click="gate = 'OR'"
                   :class="[
                     'px-2.5 py-0.5 transition cursor-pointer font-bold',
-                    gate === 'OR' ? 'bg-amber-500 text-stone-950' : 'bg-stone-100 dark:bg-stone-800 text-stone-500'
+                    gate === 'OR' ? 'bg-emerald-800 text-white' : 'bg-stone-100 dark:bg-stone-800 text-stone-500'
                   ]"
                 >
                   OR
