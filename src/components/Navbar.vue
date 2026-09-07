@@ -1,5 +1,5 @@
 <script setup>
-import { ShieldCheck, HelpCircle, ArrowRight, FileSpreadsheet, Download, RefreshCw, Cpu, GitFork } from 'lucide-vue-next'
+import { ShieldCheck, HelpCircle, FileSpreadsheet, Download, RefreshCw, Cpu, GitFork } from 'lucide-vue-next'
 
 const props = defineProps({
   hasData: {
@@ -128,15 +128,6 @@ const emit = defineEmits([
             </svg>
             <span>GitHub</span>
           </a>
-
-          <button
-            type="button"
-            @click="emit('goToUpload')"
-            class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-semibold transition shadow-xs cursor-pointer active:scale-95 font-mono"
-          >
-            <span>Sanitize File</span>
-            <ArrowRight class="w-3.5 h-3.5" />
-          </button>
         </div>
       </div>
 
