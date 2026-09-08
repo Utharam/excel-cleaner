@@ -90,7 +90,7 @@ This project uses the `gh-pages` package for easy deployment. To push the latest
 ```bash
 npm run deploy
 ```
-*(Note: Ensure your `vite.config.js` has the `base: '/excel-cleaner/'` property set before deploying).*
+*(Note: The `vite.config.js` is configured with `base: './'` for universal root and subpath hosting).*
 
 ---
-*Created with care by [Utharam](https://utharam.github.io/) — part of the spreadsheet zoo alongside [LedgerDuck 🦆](https://utharam.github.io/LedgerDuck/) and [SheetHound 🐕](https://sheethound.utharam.workers.dev/).*
+*Created with care by [Utharam — Simple Solutions for Complex Problems](https://utharam.in/) — part of the spreadsheet zoo alongside [LedgerDuck 🦆](https://utharam.github.io/LedgerDuck/) and [SheetHound 🐕](https://sheethound.utharam.workers.dev/).*

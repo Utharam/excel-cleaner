@@ -163,11 +163,11 @@ const handleCreateRuleFromRow = (data) => {
           <p class="text-stone-400 text-[11px] flex items-center justify-center sm:justify-start gap-1 font-sans">
             <span>Created with care by</span>
             <a
-              href="https://utharam.github.io/"
+              href="https://utharam.in/"
               target="_blank"
               rel="noopener noreferrer"
               class="font-semibold text-stone-700 dark:text-stone-300 hover:text-emerald-800 dark:hover:text-emerald-400 underline underline-offset-2 transition cursor-pointer"
-              title="Visit Utharam (utharam.github.io)"
+              title="Utharam — Simple Solutions for Complex Problems"
             >
               Utharam
             </a>

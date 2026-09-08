@@ -56,11 +56,11 @@ const emit = defineEmits([
             </span>
             <span class="text-xs text-stone-400 font-mono hidden sm:inline">the spreadsheet cleaner</span>
             <a
-              href="https://utharam.github.io/"
+              href="https://utharam.in/"
               target="_blank"
               rel="noopener noreferrer"
               class="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 text-stone-600 dark:text-stone-300 border border-stone-200 dark:border-stone-700 transition cursor-pointer font-mono"
-              title="Visit Utharam (utharam.github.io)"
+              title="Utharam — Simple Solutions for Complex Problems"
             >
               by Utharam
             </a>
